@@ -1,0 +1,59 @@
+#!/bin/bash
+set -o errexit
+set -o pipefail
+set -o nounset
+
+if [ ${ZVM_DEBUG:-} ]; then
+    set -o xtrace
+fi
+
+ZVM_OS=${1:-linux}
+if [ $ZVM_OS = linux ]; then
+    ZVM_BIN_EXT=''
+    ZVM_ARCHIVE_EXT=.tar.xz
+    ZVM_EXTRACT='tar xvJf'
+else
+    ZVM_BIN_EXT=.exe
+    ZVM_ARCHIVE_EXT=.zip
+    ZVM_EXTRACT='unzip -o' 
+fi
+
+ZVM_ZIG=zig$ZVM_BIN_EXT
+ZVM_WHICH_ZIG=$(which $ZVM_ZIG || true)
+
+ZVM_CURRENT_VERSION='not found'
+if [ $ZVM_WHICH_ZIG ]; then
+    ZVM_CURRENT_VERSION=$($ZVM_WHICH_ZIG version)
+fi
+echo Current version: $ZVM_CURRENT_VERSION
+
+ZVM_LATEST_INFO=$(curl -s https://ziglang.org/download/index.json | jq ".master | .[\"x86_64-$ZVM_OS\"]")
+ZVM_LATEST_TARBALL=$(echo $ZVM_LATEST_INFO | jq -r '.tarball')
+ZVM_LATEST_VERSION=$(echo $ZVM_LATEST_TARBALL | sed -rn "s/^.*?zig-$ZVM_OS-x86_64-(.*?)$ZVM_ARCHIVE_EXT$/\1/p")
+echo Latest version: $ZVM_LATEST_VERSION
+
+if [ $ZVM_CURRENT_VERSION = $ZVM_LATEST_VERSION ]; then
+	echo Up-to-date
+	exit
+fi
+
+ZVM_ARCHIVE=$(echo $ZVM_LATEST_TARBALL | sed -rn 's_^.*?/(.*?)$_\1_p')
+echo Downloading $ZVM_ARCHIVE
+wget -c -O /tmp/$ZVM_ARCHIVE $ZVM_LATEST_TARBALL
+
+echo Verifying $ZVM_ARCHIVE
+ZVM_LATEST_SHASUM=$(echo $ZVM_LATEST_INFO | jq -r '.shasum')
+echo "$ZVM_LATEST_SHASUM */tmp/$ZVM_ARCHIVE" | shasum -csa256
+
+echo Extracting $ZVM_ARCHIVE
+$ZVM_EXTRACT /tmp/$ZVM_ARCHIVE
+
+ZVM_DIR=$(echo $ZVM_ARCHIVE | sed -rn "s/^(.*?)$ZVM_ARCHIVE_EXT/\1/p")
+rm -rf zig-old
+if [ -d zig ]; then
+    mv zig zig-old
+fi
+mv $ZVM_DIR zig
+rm /tmp/$ZVM_ARCHIVE
+
+echo Updated to $($ZVM_ZIG version)
