@@ -15,15 +15,14 @@ if [ $ZVM_OS = linux ]; then
 else
     ZVM_BIN_EXT=.exe
     ZVM_ARCHIVE_EXT=.zip
-    ZVM_EXTRACT='unzip -o' 
+    ZVM_EXTRACT='unzip -o'
 fi
 
-ZVM_ZIG=zig$ZVM_BIN_EXT
-ZVM_WHICH_ZIG=$(which $ZVM_ZIG || true)
+ZVM_ZIG=./zig/zig$ZVM_BIN_EXT
 
 ZVM_CURRENT_VERSION='not found'
-if [ $ZVM_WHICH_ZIG ]; then
-    ZVM_CURRENT_VERSION=$($ZVM_WHICH_ZIG version)
+if [ -x $ZVM_ZIG ]; then
+    ZVM_CURRENT_VERSION=$($ZVM_ZIG version)
 fi
 echo Current version: $ZVM_CURRENT_VERSION
 
